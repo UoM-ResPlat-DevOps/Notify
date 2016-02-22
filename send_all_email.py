@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+# Author: Justin Mammarella
+# Date:   22/02/2016
+# Description: Email sender for user notification.
+#             Based on nectar-tools/announce
 
 import os
 import sys
@@ -21,10 +25,11 @@ smtp_obj = None
 smtp_msgs_per_conn = None
 smtp_curr_msg_num = None
 
+
 def collect_args():
 
     parser = argparse.ArgumentParser(
-        description='Se')
+        description='Send all email from a specified outbox')
 
     parser.add_argument('-p', '--smtp_server',
                         default='127.0.0.1',
@@ -32,12 +37,15 @@ def collect_args():
     parser.add_argument('-o', '--outbox',
                         required=False,
                         default=None,
-                        help='Path to outbox folder containg emails to be sent')
+                        help='Path to outbox folder containg emails to \
+be sent')
     parser.add_argument('-tr', '--test_recipient',
                         required=False,
                         default=None,
-                        help='send all emails to this single address, ignore recipient')
+                        help='send all emails to this single address, \
+ignore recipient')
     return parser
+
 
 def raise_error(error_msg):
     print error_msg
@@ -46,6 +54,7 @@ def raise_error(error_msg):
 
 def get_datetime(dt_string):
     return datetime.datetime.strptime(dt_string, '%H:%M %d-%m-%Y')
+
 
 def send_email(recipient, subject, text):
 
@@ -86,6 +95,7 @@ def send_email(recipient, subject, text):
         sys.stderr.write('Error sending to %s ...\n' % recipient)
         raise
 
+
 def main():
     global smtp_server
     global smtp_obj
@@ -105,12 +115,10 @@ def main():
 
     outbox = args.outbox
 
-
-    #outbox = os.path.abspath(args.outbox-folder)
     print outbox
     if not os.path.isdir(outbox):
         raise_error("Outbox folder is not a valid path")
-    
+
     os.chdir(outbox)
     sent = 0
 
@@ -121,15 +129,14 @@ def main():
                         subject = fh.readline().split(':')[1][1:]
                         body = fh.read()
                         if args.test_recipient:
-                            print "Sending to: " + email + " (actual recipient: " + args.test_recipient + ")"
+                            print "Sending to: " + email + \
+                            " (actual recipient: " + args.test_recipient + ")"
                             send_email(args.test_recipient, subject, body)
                         else:
                             print "Sending to: " + email
                             send_email(email, subject, body)
 
     proceed = False
-    
-
 
 if __name__ == '__main__':
     main()
