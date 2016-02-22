@@ -31,4 +31,4 @@ all the emails from the outbox folder using the following command:
 usage: send_all_email.py [-h] [-p SMTP_SERVER] [-o OUTBOX]
                          [-tr TEST_RECIPIENT]
 
-./sendallmail.py -o ./outbox/16-02-22_12:00:22/ -p smtp.unimelb.edu.au
+./send_all_email.py -o ./outbox/16-02-22_12:00:22/ -p smtp.unimelb.edu.au
