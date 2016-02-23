@@ -1,4 +1,4 @@
-User email notification scripts.
+User email notification system.
 --------------------------------
 The user email notification system consists of two scripts that must be 
 used in conjunction with one another.
@@ -31,7 +31,7 @@ A log file is created for each outbox indicating which tenants are affected,
 under each tenant any affected instances are listed , and a list of users 
 who will receive the outage email.
 
-**2) ./send_all_emails.py:** 
+**2) ./send_all_email.py:** 
 
 Once you have verified the output from ./generate_email.py as being correct 
 (both the generated emails and log files), you can then proceed to send all 
