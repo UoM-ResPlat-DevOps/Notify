@@ -40,7 +40,7 @@ the emails from the outbox folder using the following command:
 usage: send_all_email.py [-h] [-p SMTP_SERVER] [-o OUTBOX]
                          [-tr TEST_RECIPIENT]
 
-`./send_all_email.py -p smtp.unimelb.edu.au`-o ./outbox/16-02-22_12:00:22/ 
+`./send_all_email.py -p smtp.mymail.edu.au`-o ./outbox/16-02-22_12:00:22/ 
 
 The optional TEST_RECIPIENT parameter will ignore the recipient email address 
 associated with each email, and instead flood all emails to a single, 
