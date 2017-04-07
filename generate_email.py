@@ -11,11 +11,14 @@ import argparse
 import smtplib
 import logging
 import datetime
+import os_client_config
 from collections import OrderedDict
 
-from keystoneclient.exceptions import AuthorizationFailure
-from keystoneclient.v2_0 import client as ks_client
-from novaclient.v2 import client as nova_client
+from keystoneauth1 import identity as keystone_identity
+from keystoneauth1 import session as keystone_session
+from keystoneclient import client as keystone_client
+from keystoneclient.exceptions import NotFound
+from novaclient import client as nova_client
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -23,6 +26,44 @@ from jinja2 import Environment, FileSystemLoader
 email_pattern = re.compile('([\w\-\.\']+@(\w[\w\-]+\.)+[\w\-]+)')
 
 OUTPUT_FORMAT = '{: <40} {: <1} {: <40} {: <1} {: <40} {: <1}'
+
+def get_session(url=None, username=None, password=None,
+                tenant=None, version=3):
+    url = os.environ.get('OS_AUTH_URL', url)
+    username = os.environ.get('OS_USERNAME', username)
+    user_domain_name = 'Default'
+    password = os.environ.get('OS_PASSWORD', password)
+    tenant = os.environ.get('OS_TENANT_NAME', tenant)
+    project_domain_name = 'Default'
+    assert url and username and password and tenant
+    auth = keystone_identity.Password(username=username,
+                                      password=password,
+                                      tenant_name=tenant,
+                                      auth_url=url,
+                                      user_domain_name=user_domain_name,
+                                      project_domain_name=project_domain_name)
+    return keystone_session.Session(auth=auth)
+
+
+def get_users(keystone, project):
+    assignments = keystone.role_assignments.list(project=project)
+    user_ids = set()
+    for assignment in assignments:
+        if hasattr(assignment, 'user'):
+            user_ids.add(assignment.user['id'])
+    data = []
+    for user_id in user_ids:
+        user = get_user(keystone, user_id)
+        data.append(user)
+    return data
+
+
+def get_user(keystone, name_or_id):
+    try:
+        user = keystone.users.get(name_or_id)
+    except NotFound:
+        user = keystone.users.find(name=name_or_id)
+    return user
 
 
 def display_break(c):
@@ -156,39 +197,6 @@ def render_templates(subject, instances, start_ts, end_ts, tz, zone,
 def send_email(recipient, subject, text, html):
     return 0
 
-
-def get_keystone_client():
-    auth_username = os.environ.get('OS_USERNAME')
-    auth_password = os.environ.get('OS_PASSWORD')
-    auth_tenant = os.environ.get('OS_TENANT_NAME')
-    auth_url = os.environ.get('OS_AUTH_URL')
-
-    try:
-        return ks_client.Client(username=auth_username,
-                                password=auth_password,
-                                tenant_name=auth_tenant,
-                                auth_url=auth_url)
-    except AuthorizationFailure as e:
-        print e
-        print 'Authorization failed, have you sourced your openrc?'
-        sys.exit(1)
-
-
-def get_nova_client():
-
-    auth_username = os.environ.get('OS_USERNAME')
-    auth_password = os.environ.get('OS_PASSWORD')
-    auth_tenant = os.environ.get('OS_TENANT_NAME')
-    auth_url = os.environ.get('OS_AUTH_URL')
-
-    nc = nova_client.Client(auth_username,
-                            auth_password,
-                            auth_tenant,
-                            auth_url,
-                            service_type='compute')
-    return nc
-
-
 def get_instances(client, zone=None, inst_status=None, node=None):
     marker = None
     # Collect instances for a single Node
@@ -224,8 +232,8 @@ def get_instances(client, zone=None, inst_status=None, node=None):
                 yield instance
 
 
-def populate_tenant(tenant, tenant_data):
-    users = tenant.list_users()
+def populate_tenant(keystone, tenant, tenant_data):
+    users = get_users(keystone, tenant)
     name = tenant.name
     if tenant.id not in tenant_data:
         tenant_data[tenant.id] = {'users': users, 'instances': []}
@@ -290,9 +298,15 @@ def populate_user(user, user_data):
 def main():
 
     args = collect_args().parse_args()
-    kc = get_keystone_client()
-    nc = get_nova_client()
 
+    sess = get_session(url=None, username=None, password=None,
+                       tenant=None, version=3)
+     
+    kc = keystone_client.Client(3, session=sess)
+    nc = nova_client.Client(2, session = sess)
+
+
+    
     zone = args.target_zone
     smtp_server = args.smtp_server
     inst_status = args.status
@@ -328,7 +342,7 @@ def main():
     instance_tenants = set([instance.tenant_id for instance in instances])
 
     print "Listing tenants"
-    tenants = kc.tenants.list()
+    tenants = kc.projects.list()
 
     # For each tenant, create a list of instances
     tenant_data = OrderedDict()
@@ -345,7 +359,7 @@ def main():
 
     for tenant in tenants:
         if tenant.id in instance_tenants:
-            populate_tenant(tenant, tenant_data)
+            populate_tenant(kc, tenant, tenant_data)
 
     print "Gathering tenant information."
     proceed = False
