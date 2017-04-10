@@ -129,7 +129,7 @@ def get_datetime(dt_string):
     return datetime.datetime.strptime(dt_string, '%H:%M %d-%m-%Y')
 
 
-def create_notification(user_id, user, start_ts, end_ts, tz, zone, node,
+def create_notification(user, start_ts, end_ts, tz, zone, node,
                         test_recipient, work_dir, template):
     instances = user['instances']
     email = user['email']
@@ -294,6 +294,21 @@ def populate_user(user, user_data):
                               'name': user.name}
     return user_data[user.id]
 
+class user_obj():
+   def __init__(self,user):
+        self.id = user.id
+        self.instances = []
+        self.email = user._info.get('email',None)
+        self.enabled = user.enabled
+        self.name = user.name
+
+class tenant_obj():
+   def __init__(self):
+        self.id = ""
+        self.name = ""
+        self.instances = []
+        self.users = []
+        self.floating_ips = []
 
 def main():
 
@@ -305,8 +320,8 @@ def main():
     kc = keystone_client.Client(3, session=sess)
     nc = nova_client.Client(2, session = sess)
 
-
     
+   
     zone = args.target_zone
     smtp_server = args.smtp_server
     inst_status = args.status
@@ -332,62 +347,79 @@ def main():
     log_file = open(work_dir + '/' + "notify.log", "w")
     log_file.write(datetime.datetime.now().strftime("%y-%m-%d_%H:%M:%S"))
 
-    print "Listing instances."
-    # Collect instances
-    instances = list(get_instances(nc, zone, inst_status, node))
+    print "Collecting instances"
 
-    print "Collecting tenant ids"
+    # List instances affected by outage
+    affected_instances = list(get_instances(nc, zone, inst_status, node))
+    
+    # List tenants associated with affected instances
+    affected_tenants = set([instance.tenant_id for instance in affected_instances])
 
-    # Create a list of tenant_ids from instance tenant_ids
-    instance_tenants = set([instance.tenant_id for instance in instances])
+    print "Collecting projects"
+    # Tenant data
+    tenants = kc.projects.list();
 
-    print "Listing tenants"
-    tenants = kc.projects.list()
+    #For each affected tenant get the users in the tenant
+    tenant_list = [] 
+    print "Get users per project"
 
-    # For each tenant, create a list of instances
-    tenant_data = OrderedDict()
-    user_data = OrderedDict()
+    for t in affected_tenants:
+                
+        new_tenant = tenant_obj()
+        for p in tenants:
+            if t == p.id:
+                new_tenant.id = p.id
+                new_tenant.name = p.name
+                new_tenant.users = get_users(kc, t)
+        tenant_list.append(new_tenant)
+    
+    
+    #Add affected instance objects to tenants.
 
-    total = 0
+    for instance in affected_instances:
+        for t in tenant_list:
+            if t.id == instance.tenant_id:
+                t.instances.append(instance)
 
-    for instance in instances:
-        if instance.tenant_id not in tenant_data:
-                tenant_data[instance.tenant_id] = {'instances': []}
-        tenant_data[instance.tenant_id]['instances'].append(instance)
-
-    # For each tenant, collect user details
-
-    for tenant in tenants:
-        if tenant.id in instance_tenants:
-            populate_tenant(kc, tenant, tenant_data)
 
     print "Gathering tenant information."
     proceed = False
-    for tenant, data in tenant_data.iteritems():
-        total += populate_tenant_users(tenant, data, zone, user_data)
+   
+    user_data = {}
+   
+    for t in tenant_list:
+        for user in t.users:
+            populate_user(user, user_data)
+            for instance in t.instances:
+                cur_user = user_data[user.id]
+                if t.name not in cur_user['instances']:
+                    cur_user['instances'][t.name] = []
+                cur_user['instances'][t.name].append(instance)
 
-    print "Gathering user information for users in affected tenants."
     for user in kc.users.list():
         populate_user(user, user_data)
-
+    
     print "Generating notification emails."
     count = 0
     proceed = False
+    
+
     for uid, user in user_data.iteritems():
         if test_recipient:
             # Generate emails for only one email address
             if user['email'] == test_recipient:
-                if create_notification(uid, user, start_ts, end_ts,
+                if create_notification( user, start_ts, end_ts,
                                        args.timezone, zone, args.node,
                                        test_recipient, work_dir,
                                        template):
                     count += 1
         else:
-            if create_notification(uid, user, start_ts, end_ts, args.timezone,
+            if create_notification( user, start_ts, end_ts, args.timezone,
                                    zone, args.node, test_recipient, work_dir,
                                    template):
                     count += 1
-    print '\nTotal instances affected in %s zone: %s' % (zone, total)
+
+    print '\nTotal instances affected in %s zone: %s' % (zone, len(affected_instances))
     print '\nGenerated %s email notifications.' % count
     log_file.close()
 
