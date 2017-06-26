@@ -8,7 +8,7 @@ END TIME:   {{ end_ts }} {{ tz }}
 
 DESCRIPTION:
 
-We have detected a network issue with a single node ({{ node }}) in Melbourne-QH2.
+We have detected a network issue with a single node ({{ nodes }}) in Melbourne-QH2.
 The node must be shutdown. The detected fault is preventing live migration.
 To resolve the issue we will need to manually shutdown running instances and 
 migrate them to a working host.
@@ -18,7 +18,7 @@ required to perform essential maintenance.
 
 IMPACT:
 
-All instances residing on the {{ node }} node  will be shut down and migrated 
+All instances residing on the {{ nodes }} node  will be shut down and migrated 
 to a stable host
 
 ACTION REQUIRED:

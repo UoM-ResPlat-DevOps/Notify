@@ -3,6 +3,8 @@
 # Date:   22/02/2016
 # Description: Email generator for user notification.
 #             Based on nectar-tools/announce
+# Updated: 26/06/2017
+# Author: Nhat Ngo
 
 import os
 import sys
@@ -97,9 +99,10 @@ def collect_args():
     parser.add_argument('-z', '--target-zone',
                         default=None,
                         help='Availability zone affected by outage')
-    parser.add_argument('-n', '--node',
+    parser.add_argument('-n', '--nodes',
                         default=None,
-                        help='Only target instances from a single Host/Node')
+                        help='Only target instances from the following Hosts/Nodes\
+                              (e.g. qh2-rcc1 or qh2-rcc[10-99,101])')
     parser.add_argument('--status',
                         default=None,
                         help='Only consider instances with status')
@@ -112,16 +115,19 @@ def collect_args():
                         help='SMTP server to use, defaults to localhost')
     parser.add_argument('-st', '--start_time', action='store',
                         type=get_datetime,
-                        help='Outage start time (e.g. \'09:00 25-06-2015\')',
-                        required=True)
+                        help='Outage start time (e.g. \'09:00 25-06-2015\')')
     parser.add_argument('-d', '--duration', action='store', type=int,
-                        help='Duration of outage in hours', required=True)
+                        help='Duration of outage in hours')
     parser.add_argument('-tz', '--timezone', action='store',
                         help='Timezone (e.g. AEDT)', required=True)
     parser.add_argument('-t', '--template', action='store',
                         help='Name of template to use. Templates to be\
                               stored in ./template/',
                         required=True)
+    parser.add_argument('-f', '--file',
+                        default=None,
+                        help='Only consider instances with given id\
+                              listed in FILE')
 
     return parser
 
@@ -130,13 +136,13 @@ def get_datetime(dt_string):
     return datetime.datetime.strptime(dt_string, '%H:%M %d-%m-%Y')
 
 
-def create_notification(user, start_ts, end_ts, tz, zone, node,
+def create_notification(user, start_ts, end_ts, tz, zone, nodes,
                         test_recipient, work_dir, template):
     instances = user['instances']
     email = user['email']
     name = user['name']
     enabled = user['enabled']
-    subject = 'NeCTAR Research Cloud outage'
+    subject = 'NeCTAR Research Cloud action required'
 
     affected_instances = 0
     for project, servers in instances.iteritems():
@@ -145,7 +151,7 @@ def create_notification(user, start_ts, end_ts, tz, zone, node,
 
     affected = bool(affected_instances)
     if affected:
-        subject += ' affecting your instances'
+        subject += ' concerning your instances'
 
     if not enabled:
         return False
@@ -162,7 +168,7 @@ def create_notification(user, start_ts, end_ts, tz, zone, node,
 
     if affected_instances > 0:
         render_templates(subject, instances, start_ts, end_ts, tz,
-                         zone, affected, node, work_dir + '/' + email,
+                         zone, affected, nodes, work_dir + '/' + email,
                          template)
         return True
 
@@ -170,11 +176,11 @@ def create_notification(user, start_ts, end_ts, tz, zone, node,
 
 
 def render_templates(subject, instances, start_ts, end_ts, tz, zone,
-                     affected, node, filename, template):
+                     affected, nodes, filename, template):
 
-    duration = end_ts - start_ts
-    days = duration.days
-    hours = duration.seconds//3600
+    duration = end_ts - start_ts if start_ts and end_ts else None
+    days = duration.days if duration else None
+    hours = duration.seconds//3600 if duration else None
 
     env = Environment(loader=FileSystemLoader('templates'))
     text = env.get_template(template)
@@ -186,7 +192,7 @@ def render_templates(subject, instances, start_ts, end_ts, tz, zone,
                      'days': days,
                      'hours': hours,
                      'tz': tz,
-                     'node': node,
+                     'nodes': nodes,
                      'affected': affected})
     with open(filename, "wb") as fh:
         fh.write("Subject: " + subject + '\n')
@@ -199,14 +205,45 @@ def send_email(recipient, subject, text, html):
     return 0
 
 
-def get_instances(client, zone=None, inst_status=None, node=None):
+def parse_nodes(nodes):
+    # Parse list syntax (eg. qh2-rcc[01-10,13])
+    # If there is only one node (eg. qh2-rc101)
+    splitted_nodes = nodes.split('[')
+    if len(splitted_nodes) == 1:
+        return [splitted_nodes[0]]
+    # Multiple [] not supported
+    elif len(splitted_nodes) > 2:
+        raise ValueError('--nodes {0}: Multiple [] not supported.'.format(nodes))
+    else:
+        prefix, suffix = splitted_nodes
+        values, suffix = suffix.split(']')
+        # Handle value within the [] brackets
+        values = values.split(',')
+        unpacked_values = []
+        for value in values:
+            # If comma separated. Eg: [123, 126]
+            if len(value.split('-')) == 1:
+                unpacked_values.append(int(value))
+            # If have dash, make a list. Eg: [127-130]
+            else:
+                start, end = value.split('-')
+                unpacked_values.extend(range(int(start.strip(' ')), int(end.strip(' ')) + 1))
+        return [prefix + str(value) + suffix for value in set(unpacked_values)]
+
+
+def get_instances(client, zone=None, inst_status=None, nodes=None):
     marker = None
-    # Collect instances for a single Node
-    if node:
-        response = client.servers.list(search_opts={'all_tenants': 1,
-                                                    'host': node})
-        for server in response:
-            yield server
+    # Collect instances for the following nodes
+    if nodes:
+        nodes_list = parse_nodes(nodes)
+        opts = {'all_tenants': True}
+        if inst_status is not None:
+            opts['status'] = inst_status
+        for host in nodes_list:
+            opts['host'] = host
+            response = client.servers.list(search_opts=opts)
+            for server in response:
+                yield server
     # Collect instances for entire availability zone
     # marker - "begin returning servers that appear later in the server
     # list than that represented by this server id
@@ -232,6 +269,12 @@ def get_instances(client, zone=None, inst_status=None, node=None):
                 if zone and not instance_az.lower() == zone.lower():
                     continue
                 yield instance
+
+
+def get_instances_from_file(client, filename):
+    with open(filename, 'r') as server_ids:
+        for server_id in server_ids:
+            yield client.servers.get(server_id.strip('\n'))
 
 
 def populate_tenant(keystone, tenant, tenant_data):
@@ -343,10 +386,13 @@ def main():
     test_recipient = args.test_recipient
 
     start_ts = args.start_time
-    end_ts = start_ts + datetime.timedelta(hours=args.duration)
+    end_ts = start_ts + datetime.timedelta(hours=args.duration)\
+             if start_ts else None
 
     template = args.template
-    node = args.node
+    nodes = args.nodes
+
+    server_ids_file = args.file
 
     if not os.path.exists("./templates/" + template):
         print "Template could not be found."
@@ -365,7 +411,9 @@ def main():
     print "Collecting instances"
 
     # List instances affected by outage
-    affected_instances = list(get_instances(nc, zone, inst_status, node))
+    affected_instances = list(get_instances_from_file(nc, server_ids_file)
+                              if server_ids_file
+                              else get_instances(nc, zone, inst_status, nodes))
 
     # List tenants associated with affected instances
     affected_tenants = set([instance.tenant_id for instance in affected_instances])
@@ -425,13 +473,13 @@ def main():
             # Generate emails for only one email address
             if user['email'] == test_recipient:
                 if create_notification(user, start_ts, end_ts,
-                                       args.timezone, zone, args.node,
+                                       args.timezone, zone, args.nodes,
                                        test_recipient, work_dir,
                                        template):
                     count += 1
         else:
             if create_notification(user, start_ts, end_ts, args.timezone,
-                                   zone, args.node, test_recipient, work_dir,
+                                   zone, args.nodes, test_recipient, work_dir,
                                    template):
                     count += 1
 
