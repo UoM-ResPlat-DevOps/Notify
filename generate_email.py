@@ -394,6 +394,16 @@ def main():
 
     server_ids_file = args.file
 
+    # Parameters checking
+    if not server_ids_file:
+        if not start_ts:
+            print """No -st START_TIME: Please specify an outage start time.
+                        (e.g. '09:00 25-06-2015')"""
+            sys.exit(2)
+        if not end_ts:
+            print "No -d DURATION: Please specify an outage duration in hours."
+            sys.exit(2)
+
     if not os.path.exists("./templates/" + template):
         print "Template could not be found."
         sys.exit(1)

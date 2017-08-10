@@ -4,19 +4,35 @@ Dear {{ name }},
 Dear NeCTAR Research Cloud User,
 {% endif -%}
 
-Due to a recent upgrade in our network, one or more of your instances will need to
-be restart to apply the new settings.
+Please disregards the previous notice.
+
+Due to a recent upgrade in our network, one or more of your instances must be 
+restarted through NeCTAR Dashboard to apply the new settings.
 
 IMPACT:
 
-Instances that are not restarted will not be able to be backup or migrated.
+Instances that are not restarted will be automatically restarted on Thursday, 
+20/07/2017 from 10:00 AEST to 12:00AEST.
 
 ACTION REQUIRED:
 
-* Restart your instance.
- 
-* If you are no longer using the instance(s) listed below, plxease delete them 
+* If you are no longer using the instance(s) listed below, please delete/terminate them 
   before the outage.
+
+* Backup all important data. PLEASE NOTE you would not be able the snapshot your instance(s)
+due to changes in network interfaces. Your instance(s) will hang and shut down.
+ 
+* 1. Go to https://dashboard.rc.nectar.org.au/project/instances/
+  2. Click on the dropdown in the Actions column of the affected instances.
+  3. Select Hard Reboot Instance.
+
+* A soft reboot does not apply the new settings, please ensure the instance(s) are
+completed shutoff before turning them on. Otherwise, your instances will be automatically
+restarted by our scripts.
+
+AFFECTED AVAILABILITY ZONE:
+
+melbourne-np
 
 {% if affected -%}
 AFFECTED INSTANCES:
@@ -33,7 +49,7 @@ If you have any queries regarding this outage, please contact us by email:
 
    support@nectar.org.au
 
-We apologise sincerely for any inconvenience caused by this outage.
+We apologise sincerely for any inconvenience.
 
 Regards,
 
@@ -46,4 +62,3 @@ emails are essential communications which we endeavour to keep to a minimum.
 They only relate to events that may affect your NeCTAR Research Cloud resources
 or data integrity. If you receive multiple copies of this email, it may be due
 to the fact that you are a member of multiple projects.
-
