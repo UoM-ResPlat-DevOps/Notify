@@ -10,7 +10,6 @@ import os
 import sys
 import re
 import argparse
-import smtplib
 import logging
 import datetime
 import os_client_config
@@ -110,16 +109,15 @@ def collect_args():
                         default=None,
                         help='Only generate a notification for this \
                               email address')
-    parser.add_argument('-p', '--smtp_server',
-                        default='127.0.0.1',
-                        help='SMTP server to use, defaults to localhost')
+    parser.add_argument('--subject',
+                        help='Custom email subject')
     parser.add_argument('-st', '--start_time', action='store',
                         type=get_datetime,
                         help='Outage start time (e.g. \'09:00 25-06-2015\')')
     parser.add_argument('-d', '--duration', action='store', type=int,
                         help='Duration of outage in hours')
-    parser.add_argument('-tz', '--timezone', action='store',
-                        help='Timezone (e.g. AEDT)', required=True)
+    parser.add_argument('-tz', '--timezone', action='store', default='AEDT',
+                        help='Timezone (e.g. AEDT)')
     parser.add_argument('-t', '--template', action='store',
                         help='Name of template to use. Templates to be\
                               stored in ./template/',
@@ -137,20 +135,21 @@ def get_datetime(dt_string):
 
 
 def create_notification(user, start_ts, end_ts, tz, zone, nodes,
-                        test_recipient, work_dir, template):
+                        test_recipient, work_dir, template, custom_subject):
     instances = user['instances']
     email = user['email']
     name = user['name']
     enabled = user['enabled']
-    subject = 'NeCTAR Research Cloud action required'
-
+    subject = 'NeCTAR Research Cloud outage'
+    if custom_subject:
+        subject = custom_subject
     affected_instances = 0
     for project, servers in instances.iteritems():
         for server in servers:
             affected_instances += 1
 
     affected = bool(affected_instances)
-    if affected:
+    if affected and not custom_subject:
         subject += ' concerning your instances'
 
     if not enabled:
@@ -381,7 +380,6 @@ def main():
     nc = nova_client.Client(2, session=sess)
 
     zone = args.target_zone
-    smtp_server = args.smtp_server
     inst_status = args.status
     test_recipient = args.test_recipient
 
@@ -391,6 +389,7 @@ def main():
 
     template = args.template
     nodes = args.nodes
+    subject = args.subject
 
     server_ids_file = args.file
 
@@ -485,12 +484,12 @@ def main():
                 if create_notification(user, start_ts, end_ts,
                                        args.timezone, zone, args.nodes,
                                        test_recipient, work_dir,
-                                       template):
+                                       template, subject):
                     count += 1
         else:
             if create_notification(user, start_ts, end_ts, args.timezone,
                                    zone, args.nodes, test_recipient, work_dir,
-                                   template):
+                                   template, subject):
                     count += 1
 
     print '\nTotal instances affected in %s zone: %s' % (zone, len(affected_instances))

@@ -9,16 +9,28 @@ Create an outbox folder and fill it with generated emails according to a
 selected template and the specific details set by command line options.
 
 Usage:
-> generate_email.py [-h] [-z TARGET_ZONE] [-n NODE] [--status STATUS] 
-> [-tr TEST_RECIPIENT] [-p SMTP_SERVER] -st START_TIME -d DURATION 
-> -tz TIMEZONE -t TEMPLATE
+>generate_email.py [-h] [-z TARGET_ZONE] [-n NODES] [--status STATUS]
+>                         [-tr TEST_RECIPIENT] [--subject SUBJECT]
+>                         [-st START_TIME] [-d DURATION] [-tz TIMEZONE] -t
+>                         TEMPLATE [-f FILE]
 
 Example:
 
-`./generate_email.py -z melbourne-qh2 --status ACTIVE -st '10:00 24-02-2016' -d 2 -tz AEDT -n qh2-rcc94 -t single_node.tmpl`
+`./generate_email.py -z melbourne-qh2 --status ACTIVE -st '10:00 24-02-2016' -d 2 -tz AEDT -n qh2-rcc[94,96,99-101] -t outage.tmpl`
 
 *The command above will generate emails for all users of each tenant 
-corresponding to ACTIVE instances on the compute node qh2-rcc94.*
+corresponding to ACTIVE instances on the compute node qh2-rcc94, qh2-rcc96 and qh2-rcc99 to qh2-rcc101.*
+
+(Optional)
+
+Providing an additional `--subject` flag to set a custom subject for the email.
+
+If there is already a list of `instance ID` (through `openstack server list -f value -c ID` for example), it is possible to generate
+email only to those instance by using the `--file` flag:
+
+```bash
+generate_email.py --file servers-memory-error-list -st '10:00 24-02-2016' -d 2 -t sorry-our-servers-are-dead.tmpl
+```
 
 Templates are to be stored in the ./templates directory
 
