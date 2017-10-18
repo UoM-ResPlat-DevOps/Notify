@@ -1,12 +1,9 @@
 Dear NeCTAR Research Cloud User,
 
-We would like to apologise for the sudden disruption to your instance in QH2 on {{ start_ts }} {{ tz }}.
+Service has been resumed on the 8 hypervisors in {{ server.zone }} availability zone that was under maintenance from {{ start_ts }} {{ tz }}. Instances that were running before the outage have been restarted.
 
-During a compute host upgrade, an unexpected live-migration issue caused your instance to be restarted.
+We would like to apologise for the extended outage of your instances. The reason is due to unexpected slow transfer rate while moving data from our legacy storage to the new storage backend.
 
-Services have resumed as normal. Your affected instances are:
-
-{% if affected -%}
 AFFECTED INSTANCES:
 
 UUID                                  IP Address      Host            Project
@@ -15,13 +12,13 @@ UUID                                  IP Address      Host            Project
 {{ server.id }}  {{ server.accessIPv4 }}  {{ server.name }}      {{ project }}
 {% endfor -%}
 {% endfor -%}
-{% endif %}
 
-If you have any queries regarding this interruption, please contact us by email:
 
-   support@ehelp.edu.au
+This outage is part of the overall research cloud's hypervisor upgrade (more information at https://support.ehelp.edu.au/support/discussions/topics/6000049195). If you have any queries regarding this outage, please contact us by email:
 
-We apologise sincerely for any inconvenience caused.
+  support@nectar.org.au
+
+We apologise sincerely for any inconvenience caused by this disruption
 
 Regards,
 

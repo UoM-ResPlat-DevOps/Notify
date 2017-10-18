@@ -11,8 +11,7 @@ restarted through NeCTAR Dashboard to apply the new settings.
 
 IMPACT:
 
-Instances that are not restarted will be automatically restarted on Thursday, 
-20/07/2017 from 10:00 AEST to 12:00AEST.
+Instances that are not restarted will be automatically restarted at {{ start_ts }} {{ tz }}.
 
 ACTION REQUIRED:
 
@@ -26,13 +25,9 @@ due to changes in network interfaces. Your instance(s) will hang and shut down.
   2. Click on the dropdown in the Actions column of the affected instances.
   3. Select Hard Reboot Instance.
 
-* A soft reboot does not apply the new settings, please ensure the instance(s) are
-completed shutoff before turning them on. Otherwise, your instances will be automatically
-restarted by our scripts.
-
 AFFECTED AVAILABILITY ZONE:
 
-melbourne-np
+{{ server.zone }}
 
 {% if affected -%}
 AFFECTED INSTANCES:
